@@ -1,2 +1,21 @@
+# Testausgaben der Prüfskripte
 output/
 .playwright-cli/
+
+# Abhängigkeiten (die App selbst braucht keine)
+node_modules/
+
+# Lokaler Zustand der Netlify-CLI
+.netlify/
+
+# Umgebungsvariablen / Geheimnisse
+.env
+.env.*
+
+# Manuelle Netlify-Drop-ZIPs (werden bei Bedarf neu erzeugt, siehe README)
+*.zip
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+desktop.ini
