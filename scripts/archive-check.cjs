@@ -1,0 +1,102 @@
+const {chromium,webkit}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const assert=require('node:assert/strict');const fs=require('node:fs/promises');const path=require('node:path');
+(async()=>{
+  const output=path.resolve(__dirname,'../output/playwright');await fs.mkdir(output,{recursive:true});
+  for(const [name,type] of [['chromium',chromium],['webkit',webkit]]){
+    const browser=await type.launch({headless:true}),context=await browser.newContext({viewport:{width:1200,height:900},acceptDownloads:true}),page=await context.newPage();
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto('http://127.0.0.1:4173');await page.locator('#save-status').filter({hasText:'bereit'}).waitFor();
+    await page.evaluate(async()=>{
+      state.glyphs.a=[{pen:2.5,strokes:[[[200,150,.5],[240,150,.5],[240,240,.5],[200,240,.5],[200,150,.5]]]}];
+      state.text=Array.from({length:50},()=> 'aaaa').join('\n');state.settings.paper='dots';state.settings.format='a5';
+      state.boxes=[{id:MAIN_BOX,name:'Haupttext',text:'',page:0,x:64,y:220,width:240,height:170,auto:false,continuations:{1:{x:90,y:75,width:180,height:220}}},{id:'box-note',name:'Randnotiz',text:'aaa',page:0,x:330,y:90,width:140,height:120,auto:false}];
+      const paper=document.createElement('canvas');paper.width=12;paper.height=12;const ctx=paper.getContext('2d');ctx.fillStyle='#fffefa';ctx.fillRect(0,0,12,12);state.template=paper.toDataURL('image/png');templateImage=await loadImage(state.template);
+      syncControls();renderPreview();
+    });
+    await page.locator('#document-name').fill('Physik');
+    const original=await page.evaluate(()=>({content:JSON.stringify(documentContent()),layout:JSON.stringify(pages),glyphs:JSON.stringify(state.glyphs)}));
+    await page.locator('#document-save').click();await page.waitForFunction(()=>!archiveBusy && archive.documents.length===1);
+    const physicsId=await page.evaluate(()=>state.document.id);
+    await page.locator('#studio-view .document-new').click();await page.waitForFunction(()=>!archiveBusy && !state.document.id && allText().trim()==='');
+    assert.equal(await page.evaluate(()=>archive.documents.length),1,'saving and resetting does not duplicate a document');
+    assert.equal(await page.evaluate(()=>state.boxes.length),1);assert.equal(await page.evaluate(()=>pages.length),1);
+    assert.equal(await page.evaluate(()=>JSON.stringify(state.glyphs)),original.glyphs,'new document retains handwriting');
+    assert.equal(await page.evaluate(()=>state.settings.paper),'dots','new document retains chosen paper');
+    await page.locator('#document-name').fill('Chemie');await page.locator('#text').fill('aaa\naaa');
+    await page.locator('[data-view="archive"]').click();
+    await page.locator(`.archive-card[data-document-id="${physicsId}"] [data-archive-action="open"]`).click();
+    await page.waitForFunction(()=>!archiveBusy && state.document.name==='Physik');
+    assert.equal(await page.evaluate(()=>archive.documents.length),2,'opening another document archives unsaved current pages');
+    assert.equal(await page.evaluate(()=>JSON.stringify(documentContent())),original.content,'content, settings and all frame geometries restore exactly');
+    assert.equal(await page.evaluate(()=>JSON.stringify(pages)),original.layout,'random glyph layout is restored');
+    assert.equal(await page.evaluate(()=>templateImage.naturalWidth),12,'imported paper is decoded when an archived document opens');
+    const chemistryId=await page.evaluate(()=>archive.documents.find(doc=>doc.name==='Chemie').id);
+    await page.locator('#text').fill('aaaa\naaaa');await page.locator('#document-save').click();
+    await page.waitForFunction(()=>!archiveBusy && archive.documents.find(doc=>doc.name==='Physik').content.text==='aaaa\naaaa');
+    assert.equal(await page.evaluate(()=>archive.documents.length),2,'editing updates the same archive entry');
+    await page.locator('[data-view="archive"]').click();
+    const physicsCard=page.locator(`.archive-card[data-document-id="${physicsId}"]`);
+    await physicsCard.locator('[data-archive-action="rename"]').click();await page.locator('#archive-rename-name').fill('Physik – Stunde 2');await page.locator('#archive-rename-save').click();
+    await page.waitForFunction(()=>!archiveBusy && state.document.name==='Physik – Stunde 2');
+    await page.locator('#archive-search').fill('Chemie');assert.equal(await page.locator('.archive-card').count(),1);
+    await page.locator('#archive-search').fill('gibt es nicht');assert.ok(await page.locator('#archive-empty').isVisible());
+    await page.locator('#archive-search').fill('');
+    await page.locator(`.archive-card[data-document-id="${chemistryId}"] [data-archive-action="delete"]`).click();
+    await page.waitForFunction(()=>!archiveBusy && archive.documents.length===1);await page.locator('#archive-undo').click();
+    await page.waitForFunction(()=>!archiveBusy && archive.documents.length===2);
+    await page.screenshot({path:path.join(output,`${name}-archive.png`),fullPage:true,animations:'disabled'});
+    const downloadPromise=page.waitForEvent('download');await page.locator('#archive-backup').click();const backup=await downloadPromise;
+    const backupPath=path.join(output,`${name}-archive-backup.json`);await backup.saveAs(backupPath);
+    const data=JSON.parse(await fs.readFile(backupPath,'utf8'));assert.equal(data.archive.documents.length,2);assert.ok(data.glyphs.a.length);
+    await page.reload();await page.locator('#save-status').filter({hasText:'geladen'}).waitFor();
+    assert.equal(await page.evaluate(()=>archive.documents.length),2);assert.equal(await page.locator('#document-name').inputValue(),'Physik – Stunde 2');
+    assert.equal(await page.evaluate(()=>state.text),'aaaa\naaaa');
+    const beforeFailure=await page.evaluate(()=>JSON.stringify(state));
+    await page.evaluate(async()=>{const originalWrite=writeWorkspace;writeWorkspace=async()=>{throw new Error('QuotaExceededError');};await newDocument();writeWorkspace=originalWrite;});
+    assert.equal(await page.evaluate(()=>JSON.stringify(state)),beforeFailure,'failed archive writes do not reset the current document');
+    assert.equal(await page.evaluate(()=>archive.documents.length),2);
+    await page.locator('#text').fill('aaaa\naaa\nNicht archivierte Änderung');
+    await page.locator('#save-status').filter({hasText:'Auf diesem Gerät gespeichert'}).waitFor();
+    const storedBefore=await page.evaluate(async()=>JSON.stringify(await readDatabase('archive')));
+    const editedBefore=await page.evaluate(()=>JSON.stringify(state));
+    await page.evaluate(async()=>{
+      const put=IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put=function(value,key){if(key==='current')throw new DOMException('Cannot save current draft','DataCloneError');return put.call(this,value,key);};
+      try{await newDocument();}finally{IDBObjectStore.prototype.put=put;}
+    });
+    assert.equal(await page.evaluate(()=>JSON.stringify(state)),editedBefore,'a partially failing transaction keeps the edited draft');
+    assert.equal(await page.evaluate(async()=>JSON.stringify(await readDatabase('archive'))),storedBefore,'archive write is rolled back when the current-draft write fails');
+    await page.evaluate(()=>$('#toast').classList.remove('show'));
+    await page.setViewportSize({width:390,height:844});await page.locator('[data-view="archive"]').click();
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'archive and navigation fit a phone');
+    await page.screenshot({path:path.join(output,`${name}-archive-mobile.png`),fullPage:true,animations:'disabled'});
+    // A full backup restores an archive on another device/browser storage.
+    const freshContext=await browser.newContext(),fresh=await freshContext.newPage();await fresh.goto('http://127.0.0.1:4173');
+    await fresh.locator('#save-status').filter({hasText:'bereit'}).waitFor();await fresh.locator('[data-view="alphabet"]').click();
+    fresh.once('dialog',dialog=>dialog.accept());await fresh.locator('#backup-file').setInputFiles(backupPath);
+    await fresh.waitForFunction(()=>archive.documents.length===2 && state.glyphs.a?.length===1);
+    assert.equal(await fresh.evaluate(()=>state.document.name),'Physik – Stunde 2');
+    // Old backups do not erase an existing archive.
+    const oldPath=path.join(output,`${name}-old-backup.json`);delete data.archive;delete data.document;await fs.writeFile(oldPath,JSON.stringify(data));
+    fresh.once('dialog',dialog=>dialog.accept());await fresh.locator('#backup-file').setInputFiles(oldPath);
+    await fresh.waitForFunction(()=>state.document.name==='Unbenanntes Dokument');assert.equal(await fresh.evaluate(()=>archive.documents.length),2);
+    await page.locator(`.archive-card[data-document-id="${physicsId}"] [data-archive-action="delete"]`).click();
+    await page.waitForFunction(()=>!archiveBusy && state.document.id===null);
+    await page.locator('#archive-view .document-new').click();await page.waitForFunction(()=>!archiveBusy && state.text==='');
+    await page.locator('[data-view="archive"]').click();await page.locator('#archive-undo').click();await page.waitForFunction(()=>!archiveBusy && deletedDocument===null);
+    assert.equal(await page.evaluate(()=>state.document.id),null,'undo does not attach the deleted old document to a new blank draft');
+    assert.ok(await page.evaluate(id=>archive.documents.some(doc=>doc.id===id),physicsId));
+    assert.deepEqual(errors,[]);await browser.close();
+    console.log(`${name}: archive save/update, reset, switch protection, exact restore, handwriting retention, rename/search, remove/undo, reload, portable backup, legacy backup, failed-write protection and mobile layout passed.`);
+  }
+  // Exercise the Local Storage fallback as well as IndexedDB.
+  const browser=await chromium.launch({headless:true}),page=await browser.newPage();
+  await page.addInitScript(()=>{Object.defineProperty(window,'indexedDB',{value:{open(){throw new Error('unavailable');}}});});
+  await page.goto('http://127.0.0.1:4173');await page.locator('#save-status').filter({hasText:'Browserspeicherung bereit'}).waitFor();
+  await page.locator('#document-name').fill('Fallback');await page.locator('#text').fill('Ein lokales Dokument.');await page.locator('#studio-view .document-new').click();
+  await page.waitForFunction(()=>!archiveBusy && archive.documents.length===1 && state.text==='');
+  await page.reload();await page.locator('#save-status').filter({hasText:'Browserspeicherung bereit'}).waitFor();
+  assert.equal(await page.evaluate(()=>archive.documents[0].name),'Fallback');
+  await page.evaluate(()=>openDocument(archive.documents[0].id));assert.equal(await page.locator('#text').inputValue(),'Ein lokales Dokument.');
+  await browser.close();console.log('Local Storage fallback archive survives reload and restores documents.');
+})().catch(e=>{console.error(e);process.exit(1);});

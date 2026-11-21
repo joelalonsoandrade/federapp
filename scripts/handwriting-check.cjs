@@ -1,0 +1,50 @@
+const {chromium,webkit}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+(async()=>{
+  for(const [name,type] of [['chromium',chromium],['webkit',webkit]]){
+    const browser=await type.launch({headless:true});
+    const context=await browser.newContext({viewport:{width:1024,height:768},deviceScaleFactor:2});
+    const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.goto('http://127.0.0.1:4173');await page.locator('#save-status').filter({hasText:'bereit'}).waitFor();
+    await page.locator('[data-view="alphabet"]').click();
+    await page.waitForFunction(()=>draw.width===Math.round(draw.getBoundingClientRect().width*devicePixelRatio));
+    const report=await page.evaluate(()=>{
+      const a1={pen:3,strokes:[[[210,150,.5],[190,185,.5],[210,215,.5],[245,215,.5]]]};
+      const a2={pen:3,strokes:[[[210,180,.5],[190,220,.5],[210,260,.5],[245,260,.5]]]};
+      const g={pen:3,strokes:[[[210,150,.5],[245,240,.5],[240,310,.5]]]};
+      state.glyphs={a:[a1,a2],g:[g]};state.text='a '.repeat(80)+'g';state.settings.disorder=100;state.settings.fallback=false;renderPreview();
+      const target=document.createElement('canvas');const captured=[];const realTrace=trace;
+      trace=(ctx,lines,pen,color)=>{const matrix=ctx.getTransform();const glyph=pages[0][captured.length];const base=glyph.baseline;const x=glyph.b.maxX;captured.push({char:glyph.char,expected:glyph.y,actual:matrix.b*x+matrix.d*base+matrix.f});realTrace(ctx,lines,pen,color);};
+      paintPage(target,0,1,true);trace=realTrace;
+      const aligned=captured.every(g=>Math.abs(g.actual-g.expected)<1e-8);
+      const finite=pages.flat().every(g=>Number.isFinite(g.baseline));
+      return {aligned,finite,descender:glyphBaseline('g',g)===REF_BASE,nonDescender:glyphBaseline('a',a1)===bounds(a1).maxY,curvedBottom:bounds({pen:3,strokes:[[[200,150,.5],[240,300,.5],[280,150,.5]]]}).maxY};
+    });
+    assert.ok(report.aligned,'every glyph baseline maps to its actual paper line, including maximum disorder');
+    assert.ok(report.finite && report.descender && report.nonDescender);
+    assert.ok(report.curvedBottom<300,'baseline uses the smoothed curve, not raw control-point bounds');
+    await page.evaluate(()=>{renderVariants();renderLetters();});
+    await page.locator('.align-variant').first().click();
+    await page.locator('#alignment-baseline').evaluate(el=>{el.value='230';el.dispatchEvent(new Event('input',{bubbles:true}));});
+    await page.locator('#alignment-save').click();await page.locator('#save-status').filter({hasText:'Auf diesem Gerät gespeichert'}).waitFor();
+    await page.reload();
+    await page.locator('#save-status').filter({hasText:'geladen'}).waitFor();
+    assert.equal(await page.evaluate(()=>state.glyphs.a[0].baseline),230,'manual calibration persists');
+    assert.equal(await page.evaluate(()=>normalizedState(state).glyphs.a[0].baseline),230,'backup import retains calibration');
+    await page.evaluate(()=>{state.glyphs.a[0].baseline=bounds(state.glyphs.a[0]).maxY;renderPreview();});
+    await page.locator('[data-view="alphabet"]').click();
+    const box=await page.locator('#draw-canvas').boundingBox();
+    await page.mouse.move(box.x+box.width*.3,box.y+box.height*.6);await page.mouse.down();
+    for(let i=1;i<70;i++)await page.mouse.move(box.x+box.width*(.3+i/200),box.y+box.height*(.5+Math.sin(i/10)*.15));
+    await page.mouse.up();
+    await fs.mkdir(path.resolve(__dirname,'../output/playwright'),{recursive:true});
+    await page.screenshot({path:path.resolve(__dirname,`../output/playwright/${name}-smooth-drawing.png`),fullPage:true,animations:'disabled'});
+    await page.locator('[data-view="studio"]').click();
+    await page.screenshot({path:path.resolve(__dirname,`../output/playwright/${name}-aligned-paper.png`),fullPage:true,animations:'disabled'});
+    assert.equal(errors.length,0,errors.join('\n'));
+    console.log(`${name}: Retina resolution, smoothed curve bounds, fixed baselines at 100% disorder, descenders and persisted manual alignment passed.`);
+    await browser.close();
+  }
+})().catch(e=>{console.error(e);process.exit(1);});
