@@ -37,3 +37,19 @@ Den Ordner **netlify-drop** bei https://app.netlify.com/drop hineinziehen. In di
 ## Lokal entwickeln
 
 Mit einem beliebigen statischen HTTP-Server `netlify-drop` bereitstellen. `file://` eignet sich wegen browserabhängiger Speicherregeln nicht als regulärer Betrieb. Das JavaScript ist ohne Framework; die PDF-Bibliothek ist fertig mitgeliefert. Kein npm-Installieren oder Build erforderlich.
+
+## Prüfskripte
+
+Die Browser-Prüfungen in `scripts/` haben eigene Abhängigkeiten in `scripts/package.json` (Playwright, pdf-lib, pngjs, pdfjs-dist, @napi-rs/canvas). Sie liegen bewusst nicht im Wurzelverzeichnis, damit Netlify beim Deploy nichts installiert. Einmalig einrichten:
+
+```bash
+cd scripts
+npm ci
+npx playwright install chromium webkit
+```
+
+Unter Linux bei Bedarf `npx playwright install --with-deps chromium webkit`. Danach startet `npm test` (im Ordner `scripts`) den lokalen Server `serve.cjs` auf Port 4173, führt `check.cjs` und alle `*-check.cjs` nacheinander aus und beendet den Server wieder. Einzelne Prüfungen laufen mit `node serve.cjs` in einem Terminal und z. B. `node vector-check.cjs` in einem zweiten. Screenshots und Exporte landen in `output/playwright/`.
+
+Die Leistungsmessung `dots-performance.cjs` ist nicht Teil von `npm test`: erst `node dots-performance.cjs before` (Basiswert), nach einer Änderung `node dots-performance.cjs after` (Prüfungen plus Beschleunigung).
+
+GitHub Actions führt `npm test` bei jedem Push und Pull Request aus (`.github/workflows/checks.yml`).

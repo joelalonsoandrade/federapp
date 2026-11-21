@@ -1,5 +1,5 @@
-const {chromium, webkit} = require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const {PDFDocument} = require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pdf-lib');
+const {chromium, webkit} = require('playwright');
+const {PDFDocument} = require('pdf-lib');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const assert = require('node:assert/strict');
@@ -56,7 +56,7 @@ async function check(browserType, label) {
   await page.locator('#transparent').check();
   const pngDownload=page.waitForEvent('download');await page.locator('#download-png').click();
   const png=await pngDownload;await png.saveAs(path.join(output,`${label}-transparent.png`));
-  const {PNG}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pngjs');
+  const {PNG}=require('pngjs');
   const pngData=PNG.sync.read(await fs.readFile(path.join(output,`${label}-transparent.png`)));
   assert.equal(pngData.data[3],0,'PNG background is actually transparent');
   assert.ok(pngData.data.some((v,i)=>i%4===3 && v>0),'PNG contains ink');

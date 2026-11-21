@@ -1,4 +1,4 @@
-const {chromium,webkit}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium,webkit}=require('playwright');
 const assert=require('node:assert/strict');
 (async()=>{
   for(const [name,type] of [['chromium',chromium],['webkit',webkit]]){

@@ -1,5 +1,5 @@
-const {chromium,webkit}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const {PDFDocument}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pdf-lib');
+const {chromium,webkit}=require('playwright');
+const {PDFDocument}=require('pdf-lib');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');const path=require('node:path');
 (async()=>{

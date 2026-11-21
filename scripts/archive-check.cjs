@@ -1,4 +1,4 @@
-const {chromium,webkit}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const {chromium,webkit}=require('playwright');
 const assert=require('node:assert/strict');const fs=require('node:fs/promises');const path=require('node:path');
 (async()=>{
   const output=path.resolve(__dirname,'../output/playwright');await fs.mkdir(output,{recursive:true});

@@ -1,0 +1,14 @@
+{
+  "name": "feder-checks",
+  "private": true,
+  "scripts": {
+    "test": "node run-checks.cjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.2.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438",
+    "playwright": "^1.65.1",
+    "pngjs": "^7.0.0"
+  }
+}

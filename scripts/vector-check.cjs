@@ -1,6 +1,6 @@
-const {chromium}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
-const {PDFDocument,PDFName}=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pdf-lib');
-const native=require('C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');
+const {chromium}=require('playwright');
+const {PDFDocument,PDFName}=require('pdf-lib');
+const native=require('@napi-rs/canvas');
 const fs=require('node:fs/promises');const path=require('node:path');const assert=require('node:assert/strict');
 (async()=>{
   const output=path.resolve(__dirname,'../output/playwright');await fs.mkdir(output,{recursive:true});
@@ -26,7 +26,7 @@ const fs=require('node:fs/promises');const path=require('node:path');const asser
   const xobjects=document.getPage(0).node.Resources()?.lookup(PDFName.of('XObject'));
   assert.ok(!xobjects || xobjects.keys().length===0,'own handwriting PDF contains no bitmap image objects');
   global.DOMMatrix=native.DOMMatrix;global.ImageData=native.ImageData;global.Path2D=native.Path2D;
-  const pdfjs=await import('file:///C:/Users/drei/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjs=await import('pdfjs-dist/legacy/build/pdf.mjs');
   const loaded=await pdfjs.getDocument({data:new Uint8Array(pdfBytes),useSystemFonts:true}).promise;
   const pdfPage=await loaded.getPage(1),operators=await pdfPage.getOperatorList();
   assert.ok(operators.fnArray.includes(pdfjs.OPS.constructPath),'PDF contains drawing paths');
