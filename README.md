@@ -4,9 +4,48 @@ Eine vollständig lokale Handschrift-Web-App auf Deutsch, für iPad, Apple Penci
 
 ## Auf Netlify veröffentlichen
 
-Den Ordner **netlify-drop** bei https://app.netlify.com/drop hineinziehen. In diesem Ordner liegt `index.html` direkt auf der obersten Ebene. Alternativ die beigefügte ZIP-Datei hochladen. Bei einem Git-basierten Netlify-Projekt verwendet `netlify.toml` denselben Ordner als Veröffentlichungsverzeichnis.
+Feder wird direkt aus diesem GitHub-Repository auf Netlify veröffentlicht. **Jeder Push auf `main` geht automatisch live**, ohne ZIP und ohne Hochladen per Hand. Die Einstellungen stehen in [`netlify.toml`](netlify.toml): veröffentlicht wird der Ordner `netlify-drop`, ein Build-Schritt ist nicht nötig.
+
+### Einmalig: Repository mit Netlify verbinden
+
+> **Wichtig, falls Feder schon per Netlify Drop online ist:** Die Handschrift, Entwürfe und das Archiv liegen im Browser des iPads und sind an die Web-Adresse gebunden. Eine **neue** Netlify-Seite hat eine neue Adresse und damit einen leeren Speicher. Deshalb entweder die **bestehende** Seite mit GitHub verbinden (Variante A) oder vorher auf dem iPad **Sicherung speichern** und auf der neuen Adresse **Sicherung laden**.
+
+**Variante A: bestehende Drop-Seite verbinden (Adresse bleibt gleich)**
+
+1. In Netlify die vorhandene Seite öffnen.
+2. **Site configuration → Build & deploy → Continuous deployment → Link repository** wählen.
+3. **GitHub** wählen und das Repository `federapp` auswählen (beim ersten Mal Netlify den Zugriff auf GitHub erlauben).
+4. Branch: `main`. Build command und Publish directory werden aus `netlify.toml` übernommen (`netlify-drop`). Leer lassen oder genau so eintragen.
+5. Speichern. Netlify baut sofort die aktuelle Version aus GitHub.
+
+**Variante B: neue Seite anlegen**
+
+1. In Netlify **Add new site → Import an existing project → GitHub** wählen.
+2. Repository `federapp` auswählen, Branch `main`.
+3. Die Einstellungen kommen aus `netlify.toml`. Auf **Deploy** klicken.
+4. Optional unter **Domain management** einen eigenen Namen vergeben (z. B. `feder-xyz.netlify.app`).
+
+### Danach: Änderungen veröffentlichen
+
+1. Dateien in `netlify-drop/` ändern.
+2. Lokal testen (siehe [Lokal entwickeln](#lokal-entwickeln)).
+3. Committen und auf `main` pushen:
+
+   ```bash
+   git add netlify-drop
+   git commit -m "Beschreibung der Änderung"
+   git push
+   ```
+
+4. Netlify veröffentlicht nach etwa einer halben Minute. Den Stand zeigt die Seite unter **Deploys** in Netlify.
+
+Wer über einen Branch und Pull Request arbeitet, bekommt von Netlify für jeden Pull Request automatisch eine **Deploy Preview** mit eigener Adresse. Erst der Merge nach `main` geht live. Ein fehlerhaftes Deployment lässt sich unter **Deploys** mit **Publish deploy** auf einer älteren Version sofort zurücknehmen.
 
 Öffne anschließend dieselbe HTTPS-Adresse auf deinem iPad in Safari. Die Schrift liegt auf dem iPad, nicht auf dem Computer, der die Website hochgeladen hat. Für ein übertragenes Alphabet die Sicherungsdatei laden.
+
+### Notlösung ohne Git: Netlify Drop
+
+Den Ordner **netlify-drop** bei https://app.netlify.com/drop hineinziehen; `index.html` liegt darin auf oberster Ebene. Bei einer mit GitHub verbundenen Seite nicht verwenden, denn der nächste Push überschreibt den manuellen Stand. ZIP-Dateien werden nicht mehr im Repository gespeichert, weil sie bei jeder Änderung veralten.
 
 ## Benutzung
 
@@ -36,4 +75,30 @@ Den Ordner **netlify-drop** bei https://app.netlify.com/drop hineinziehen. In di
 
 ## Lokal entwickeln
 
-Mit einem beliebigen statischen HTTP-Server `netlify-drop` bereitstellen. `file://` eignet sich wegen browserabhängiger Speicherregeln nicht als regulärer Betrieb. Das JavaScript ist ohne Framework; die PDF-Bibliothek ist fertig mitgeliefert. Kein npm-Installieren oder Build erforderlich.
+Die App ist reines HTML, CSS und JavaScript ohne Framework; die PDF-Bibliothek ist fertig mitgeliefert. Kein npm-Installieren und kein Build erforderlich. Benötigt wird nur [Node.js](https://nodejs.org) für den kleinen lokalen Server:
+
+```bash
+node scripts/serve.cjs
+```
+
+Dann http://127.0.0.1:4173 im Browser öffnen. Jeder andere statische HTTP-Server für `netlify-drop` funktioniert ebenso. `file://` eignet sich wegen browserabhängiger Speicherregeln nicht als regulärer Betrieb.
+
+Hinweis: Der lokale Server sendet die Sicherheits-Header aus `netlify-drop/_headers` nicht. Die Content-Security-Policy erlaubt nur Skripte und Styles aus dem eigenen Ordner. Neue Dateien deshalb lokal in `netlify-drop/` ablegen und nicht von fremden Servern laden, sonst blockiert Netlify sie.
+
+### Prüfskripte
+
+`scripts/*-check.cjs` und `scripts/dots-performance.cjs` sind automatisierte Browser-Tests mit Playwright. Sie erwarten einen laufenden `scripts/serve.cjs` und schreiben Screenshots und Exporte nach `output/` (nicht versioniert). Sie laden Playwright, pdf-lib und pngjs derzeit über einen fest eingetragenen lokalen Pfad der Codex-Umgebung und laufen deshalb nur auf dem Rechner, auf dem sie erstellt wurden. Für das Deployment werden sie nicht gebraucht.
+
+## Projektstruktur
+
+| Pfad | Inhalt |
+|---|---|
+| `netlify-drop/` | Die komplette App. **Nur dieser Ordner wird veröffentlicht.** |
+| `netlify-drop/index.html` | Einstiegsseite |
+| `netlify-drop/app.js`, `textboxes.js`, `archive.js`, `vector.js` | App-Logik |
+| `netlify-drop/styles.css`, `archive.css` | Gestaltung |
+| `netlify-drop/vendor/` | pdf-lib (MIT-Lizenz) für den PDF-Export |
+| `netlify-drop/_headers` | Sicherheits-Header für Netlify (CSP u. a.) |
+| `netlify.toml` | Netlify-Einstellungen: Veröffentlichungsordner, kein Build |
+| `scripts/serve.cjs` | Lokaler Entwicklungsserver auf Port 4173 |
+| `scripts/*-check.cjs` | Browser-Tests (siehe oben) |

@@ -1,2 +1,15 @@
+# Netlify-Konfiguration für Feder
+#
+# Feder ist eine statische Web-App ohne Build-Schritt. Netlify veröffentlicht
+# den Ordner `netlify-drop` unverändert. Jeder Push auf `main` löst automatisch
+# ein neues Deployment aus; Pull Requests bekommen eine eigene Vorschau-URL.
+#
+# Sicherheits-Header stehen in `netlify-drop/_headers`, damit sie auch beim
+# manuellen Hochladen über https://app.netlify.com/drop gelten.
+
 [build]
+  # Ordner, der 1:1 veröffentlicht wird (enthält index.html auf oberster Ebene).
   publish = "netlify-drop"
+  # Kein Build nötig: kein npm install, kein Bundler. Der Befehl tut nichts,
+  # überschreibt aber einen eventuell in der Netlify-Oberfläche eingetragenen.
+  command = "echo 'Feder: kein Build noetig, veroeffentliche netlify-drop/'"
