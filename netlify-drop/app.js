@@ -299,10 +299,13 @@ function paintPage(canvas,index,resolution=1.5,transparent=false) {
   if (!transparent) drawPaper(ctx,w,h);
   drawPageInk(ctx,index);
 }
-function drawPageInk(ctx,index) {
+function drawPageInk(ctx,index) {drawInk(ctx,pages[index]||[]);}
+// Glyphs are drawn relative to the origin (ox,oy). The preview passes its text box origin,
+// so moving the box only changes the group's transform (see paintPreviewPage).
+function drawInk(ctx,glyphs,ox=0,oy=0) {
   const s=state.settings,unit=s.size/REF_XHEIGHT;
-  for (const g of (pages[index]||[])) {
-    ctx.save();ctx.translate(g.x,g.y);
+  for (const g of glyphs) {
+    ctx.save();ctx.translate(g.x-ox,g.y-oy);
     // Horizontal shear varies the slant while preserving every point on y=0.
     // Rotation and vertical jitter used to lift the feet away from the paper line.
     ctx.transform(1,0,g.slant,1,0,0);
@@ -319,7 +322,7 @@ function paintPreviewPage(canvas,index) {
   let cache=previewCache.get(canvas);
   if(!paperLayer || !inkLayer){
     const ns='http://www.w3.org/2000/svg';paperLayer=document.createElementNS(ns,'g');paperLayer.dataset.layer='paper';inkLayer=document.createElementNS(ns,'g');inkLayer.dataset.layer='ink';
-    canvas.replaceChildren(paperLayer,inkLayer);cache={paper:[],ink:[]};previewCache.set(canvas,cache);
+    canvas.replaceChildren(paperLayer,inkLayer);cache={paper:[],ink:[],boxes:new Map()};previewCache.set(canvas,cache);
   }
   const key=[w,h,s.paper,s.paperColor,s.spacing,s.top,state.template];
   if(key.some((value,i)=>value!==cache.paper[i])){
@@ -333,12 +336,51 @@ function paintPreviewPage(canvas,index) {
     }
     cache.paper=key;
   }
-  // Keep unchanged pages mounted while a field on another page is edited.
+  // Ink has one group per text box on this sheet. A moved box keeps its serialised
+  // glyphs and only gets a new translate(); it is re-serialised when its glyphs change.
+  // Unchanged boxes and pages stay mounted while a field elsewhere is edited.
   const inkKey=[w,h,s.size,s.width,s.strokeWidth,s.ink,s.fallback];
-  for(const g of pages[index])inkKey.push(g.char,g.v,g.b,g.v?.strokes,g.v?.pen,g.baseline,g.x,g.y,g.slant,g.stretch);
-  if(inkKey.length!==cache.ink.length || inkKey.some((value,i)=>value!==cache.ink[i])){
-    const ink=new VectorPage();drawPageInk(ink,index);inkLayer.innerHTML=ink.svg(w,h,`ink-${index}-vp`);cache.ink=inkKey;
+  if(inkKey.some((value,i)=>value!==cache.ink[i])){cache.ink=inkKey;cache.boxes=new Map();}
+  const groups=new Map(),locations=boxLocations.get(index)||[],boxes=new Map();
+  for(const g of pages[index]){if(!groups.has(g.boxId))groups.set(g.boxId,[]);groups.get(g.boxId).push(g);}
+  for(const [boxId,glyphs] of groups){
+    const {rect}=locations.find(l=>l.box.id===boxId),ax=rect.x,ay=rect.baseline;
+    let entry=cache.boxes.get(boxId);
+    if(!entry){entry={el:document.createElementNS('http://www.w3.org/2000/svg','g')};entry.el.dataset.boxId=boxId;}
+    if(!entry.glyphs || !sameInk(entry,glyphs,ax,ay)){
+      const ink=new VectorPage();drawInk(ink,glyphs,ax,ay);const markup=ink.svg(w,h,'glyph-',glyphPaths);defineGlyphPaths();entry.el.innerHTML=markup;
+      Object.assign(entry,{glyphs,ox:ax,oy:ay});
+    }
+    if(entry.tx!==ax || entry.ty!==ay){entry.el.setAttribute('transform',`translate(${ax} ${ay})`);entry.tx=ax;entry.ty=ay;}
+    boxes.set(boxId,entry);
   }
+  cache.boxes=boxes;
+  const elements=[...boxes.values()].map(entry=>entry.el);
+  if(elements.length!==inkLayer.children.length || elements.some((el,i)=>inkLayer.children[i]!==el))inkLayer.replaceChildren(...elements);
+}
+// Handwriting outlines are defined once in a hidden SVG and referenced by every sheet, so a
+// re-serialised sheet only writes <use> elements. glyphPaths maps path data to its id.
+const glyphPaths=new Map();let glyphDefs=null,glyphDefsCount=0;
+function defineGlyphPaths(){
+  if(!glyphDefs){
+    const ns='http://www.w3.org/2000/svg',holder=document.createElementNS(ns,'svg');
+    holder.setAttribute('width','0');holder.setAttribute('height','0');holder.setAttribute('aria-hidden','true');holder.style.position='absolute';
+    glyphDefs=document.createElementNS(ns,'defs');holder.append(glyphDefs);document.body.append(holder);
+  }
+  const added=[...glyphPaths].slice(glyphDefsCount);
+  if(added.length)glyphDefs.insertAdjacentHTML('beforeend',added.map(([d,id])=>`<path id="${id}" d="${d}"/>`).join(''));
+  glyphDefsCount=glyphPaths.size;
+}
+// Two layouts of one box match when their glyphs are the same and their positions are the
+// same relative to the box origin. The tolerance only absorbs floating-point noise from moving the origin.
+function sameInk(entry,glyphs,ax,ay){
+  const old=entry.glyphs;if(old.length!==glyphs.length)return false;
+  for(let i=0;i<old.length;i++){
+    const a=old[i],b=glyphs[i];
+    if(a.char!==b.char || a.v!==b.v || a.b!==b.b || a.baseline!==b.baseline || a.slant!==b.slant || a.stretch!==b.stretch)return false;
+    if(Math.abs(a.x-entry.ox-(b.x-ax))>1e-9 || Math.abs(a.y-entry.oy-(b.y-ay))>1e-9)return false;
+  }
+  return true;
 }
 function paintPreview() {
   const stack=$('#page-stack');

@@ -44,9 +44,11 @@ class VectorPage {
       else{this.beginPath();this.arc(lines[index][0][0],lines[index][0][1],pen/2);this.fill();}
     });
   }
-  svg(width,height,prefix='vp'){
+  // With `shared` (a Map of path data to id), outlines are registered there and no <defs> is
+  // returned: the caller defines them once in the document and every sheet references them.
+  svg(width,height,prefix='vp',shared=null){
     const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
-    const number=n=>Number(n.toFixed(5));const definitions=new Map();const body=[];
+    const number=n=>Number(n.toFixed(5));const definitions=shared||new Map();const body=[];
     for(const item of this.items){
       const transform=`matrix(${item.matrix.map(number).join(' ')})`;
       if(item.type==='path'){
@@ -57,6 +59,7 @@ class VectorPage {
       }else if(item.type==='image')body.push(`<image href="${escape(item.source)}" x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" preserveAspectRatio="none" transform="${transform}"/>`);
       else body.push(`<text x="${item.x}" y="${item.y}" fill="${escape(item.fill)}" style="font:${escape(item.font)}" transform="${transform}">${escape(item.text)}</text>`);
     }
+    if(shared)return body.join('');
     return `<defs>${[...definitions].map(([d,id])=>`<path id="${id}" d="${d}"/>`).join('')}</defs>${body.join('')}`;
   }
   async toPDF(document,page,cache){
