@@ -423,6 +423,44 @@ async function makePDF() {
   }
   return new Blob([await document.save()],{type:'application/pdf'});
 }
+// .goodnotes-Export: Jeder Strich wird echte GoodNotes-Tinte (radierbar), das Papier
+// ist der Hintergrund. Die Striche entsprechen der Zeichnung in drawPageInk().
+async function goodNotesFile() {
+  renderPreview();
+  const [w,h]=dimensions(),PT=.75,s=state.settings,unit=s.size/REF_XHEIGHT;
+  const rgb=[1,3,5].map(i=>parseInt(s.ink.slice(i,i+2),16)/255);
+  let skipped=0;
+  const strokes=pages.map(glyphs=>{
+    const out=[];
+    for(const g of glyphs){
+      if(!g.v){if(s.fallback && !/^\s$/u.test(g.char))skipped++;continue;}
+      const sx=unit*s.width/100*g.stretch,sy=unit*g.stretch,width=g.v.pen/2.5*s.strokeWidth*PT;
+      for(const stroke of g.v.strokes){
+        out.push({width,color:rgb,points:stroke.map(([x,y])=>{const X=(x-g.b.minX)*sx,Y=(y-g.baseline)*sy;return [(X+g.slant*Y+g.x)*PT,(Y+g.y)*PT];})});
+      }
+    }
+    return out;
+  });
+  const paperDoc=await PDFLib.PDFDocument.create();
+  paperDoc.setCreator('Feder');
+  const page=paperDoc.addPage([w*PT,h*PT]);
+  page.pushOperators(PDFLib.pushGraphicsState(),PDFLib.concatTransformationMatrix(PT,0,0,-PT,0,h*PT));
+  const paper=new VectorPage();drawPaper(paper,w,h);await paper.toPDF(paperDoc,page,new Map());page.pushOperators(PDFLib.popGraphicsState());
+  const paperPdf=new Uint8Array(await paperDoc.save());
+  const blob=await GoodNotesExport.build({title:$('#export-name').value.trim()||'Meine Notizen',widthPt:w*PT,heightPt:h*PT,pages:strokes,paperPdf});
+  return {blob,skipped};
+}
+async function exportGoodNotes() {
+  if(exportBusy)return;
+  if(!allText().trim()){toast('Füge zuerst einen Text ein.');return;}
+  exportBusy=true;$$('.export-actions button').forEach(b=>b.disabled=true);
+  try{
+    const {blob,skipped}=await goodNotesFile();
+    download(blob,filename('.goodnotes'));
+    toast(skipped?`.goodnotes ist bereit. ${skipped} Zeichen aus der Beispielschrift sind nicht enthalten.`:'.goodnotes ist bereit.');
+  }catch(error){toast('GoodNotes-Export fehlgeschlagen. Bitte mit einem kürzeren Text erneut versuchen.');}
+  finally{exportBusy=false;$$('.export-actions button').forEach(b=>b.disabled=false);renderPreview();}
+}
 async function exportDocument(type,share=false) {
   if(exportBusy)return;
   if(!allText().trim()){toast('Füge zuerst einen Text ein.');return;}
@@ -499,7 +537,7 @@ function bindEvents() {
   };
   $('#export-open').onclick=()=>{renderPreview();$('#export-name').value=currentDocumentName();$('#export-dialog').showModal();};
   $('#help-button').onclick=()=>$('#help-dialog').showModal();
-  $('#download-pdf').onclick=()=>exportDocument('pdf');$('#download-png').onclick=()=>exportDocument('png');$('#share-pdf').onclick=()=>exportDocument('pdf',true);
+  $('#download-pdf').onclick=()=>exportDocument('pdf');$('#download-goodnotes').onclick=()=>exportGoodNotes();$('#download-png').onclick=()=>exportDocument('png');$('#share-pdf').onclick=()=>exportDocument('pdf',true);
   $('#share-pdf').hidden=!navigator.share;
   $$('dialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog && !exportBusy){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close();}}));
   $('#export-dialog').addEventListener('cancel',e=>{if(exportBusy)e.preventDefault();});
