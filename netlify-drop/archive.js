@@ -48,8 +48,8 @@ function updateDocumentControls(){
   $('#document-name').disabled=archiveBusy;
   if(document.activeElement!==$('#document-name'))$('#document-name').value=state.document.name;
   const saved=archive.documents.some(doc=>doc.id===state.document.id);
-  $('#document-save').textContent=saved?'Änderungen speichern':'Im Archiv speichern';
-  $('#document-status').textContent=saved?'Entwurf wird automatisch gespeichert. Beim Dokumentwechsel wird das Archiv aktualisiert.':'Beim Starten eines neuen Dokuments werden deine aktuellen Blätter im Archiv gesichert.';
+  $('#document-save').textContent=saved?'Speichern':'Archivieren';
+  $('#document-status').textContent=saved?'Im Archiv':'';
   $('#archive-count').textContent=archive.documents.length;
   $('#document-save').disabled=archiveBusy||!archiveAvailable;
   $$('.document-new').forEach(button=>button.disabled=archiveBusy||!archiveAvailable);
@@ -62,10 +62,10 @@ function documentText(content){return [content.text,...content.boxes.filter(b=>b
 function renderArchive(){
   const list=$('#archive-list'),search=$('#archive-search').value.trim().toLocaleLowerCase('de');list.replaceChildren();
   const docs=[...archive.documents].sort((a,b)=>b.updatedAt-a.updatedAt || a.name.localeCompare(b.name,'de')).filter(doc=>`${doc.name}\n${documentText(doc.content)}`.toLocaleLowerCase('de').includes(search));
-  $('#archive-summary').textContent=`${archive.documents.length} ${archive.documents.length===1?'Dokument':'Dokumente'} · auf diesem Gerät`;
+  $('#archive-summary').textContent=`${archive.documents.length} ${archive.documents.length===1?'Dokument':'Dokumente'}`;
   $('#archive-empty').hidden=docs.length>0;
   $('#archive-empty-title').textContent=!archiveAvailable?'Archiv nicht verfügbar':search?'Keine passenden Dokumente':'Dein Archiv ist noch leer';
-  $('#archive-empty-text').textContent=!archiveAvailable?'Lade bei Bedarf eine Sicherung mit deinem Archiv.':search?'Versuche einen anderen Namen oder Suchbegriff.':'Speichere deine Blätter im Papierstudio. Hier kannst du sie später wieder öffnen.';
+  $('#archive-empty-text').textContent=!archiveAvailable?'Lade bei Bedarf eine Sicherung mit deinem Archiv.':search?'Versuche einen anderen Namen oder Suchbegriff.':'Gespeicherte Dokumente erscheinen hier.';
   $('#archive-undo-row').hidden=!deletedDocument;
   for(const doc of docs){
     const card=document.createElement('article');card.className='archive-card';card.dataset.documentId=doc.id;
@@ -76,7 +76,7 @@ function renderArchive(){
     const formats={a4:'A4',a5:'A5',letter:'US Letter'},papers={lined:'Liniert',grid:'Kariert',dots:'Gepunktet',blank:'Blanko'};
     meta.textContent=`${doc.pageCount} ${doc.pageCount===1?'Seite':'Seiten'} · ${formats[doc.content.settings.format]} · ${doc.content.template?'Eigene Vorlage':papers[doc.content.settings.paper]}`;
     const excerpt=document.createElement('p');excerpt.className='archive-excerpt';excerpt.textContent=documentText(doc.content).trim().slice(0,180)||'Leeres Dokument';
-    const date=document.createElement('p');date.className='archive-date';date.textContent=`Gespeichert am ${new Date(doc.updatedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
+    const date=document.createElement('p');date.className='archive-date';date.textContent=`${new Date(doc.updatedAt).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`;
     const actions=document.createElement('div');actions.className='archive-card-actions';
     for(const [action,label,className] of [['open','Öffnen','button primary'],['rename','Umbenennen','text-button'],['delete','Entfernen','text-button muted']]){
       const button=document.createElement('button');button.className=className;button.dataset.archiveAction=action;button.textContent=label;button.setAttribute('aria-label',`${doc.name}: ${label}`);actions.append(button);

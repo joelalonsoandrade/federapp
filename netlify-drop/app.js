@@ -14,7 +14,7 @@ const SLIDERS = [
   ['size','Schriftgröße',12,40,1,'px'], ['width','Schriftbreite',65,140,1,'%'],
   ['wordSpacing','Wortabstand',75,300,5,'%'],
   ['strokeWidth','Strichstärke',0.4,2.2,0.1,'px'],
-  ['disorder','Natürliche Unordnung',0,100,1,'%'], ['spacing','Linienabstand',18,60,1,'px'],
+  ['disorder','Unordnung',0,100,1,'%'], ['spacing','Linienabstand',18,60,1,'px'],
   ['top','Erste Grundlinie',40,180,1,'px'], ['margin','Seitenrand',24,100,1,'px'],
 ];
 const SAMPLE = 'Fotosynthese\n\nPflanzen nutzen Lichtenergie, um aus Wasser und Kohlenstoffdioxid Glucose und Sauerstoff herzustellen. Dieser Vorgang findet in den Chloroplasten statt.\n\nDie Glucose dient als Energiequelle und als Ausgangsstoff für weitere Stoffe.';
@@ -142,7 +142,7 @@ function renderLetters() {
   $('#nav-count').textContent = completed; $('#glyph-progress').style.width = `${completed/ALL.length*100}%`;
   const chars = group==='needed' ? neededChars() : GROUPS[group];
   $('#letter-grid').replaceChildren();
-  if (!chars.length) { const p = document.createElement('p'); p.className='small muted';p.textContent='Füge zuerst im Papierstudio deinen Text ein.';$('#letter-grid').append(p); }
+  if (!chars.length) { const p = document.createElement('p'); p.className='small muted';p.textContent='Noch kein Text im Studio.';$('#letter-grid').append(p); }
   for (const c of chars) {
     const b = document.createElement('button'); b.className = 'letter-button'; b.classList.toggle('active',c===selected);
     b.textContent = c; b.setAttribute('aria-label',`${c}: ${state.glyphs[c]?.length || 0} Varianten`);b.setAttribute('aria-pressed',c===selected);
@@ -383,10 +383,10 @@ function renderPreview() {
   const missing=neededChars().filter(c=>!state.glyphs[c]?.length);
   const note=$('#missing-note');note.replaceChildren();
   if (missing.length) {
-    const text=document.createElement('span');text.textContent=`${missing.length} Zeichen fehlen in deinem Alphabet (${missing.slice(0,12).join(' ')}${missing.length>12?' …':''}). ${state.settings.fallback?'Aktuell siehst du dafür die Beispielschrift.':'Diese Zeichen bleiben im Export leer.'} `;
-    const button=document.createElement('button');button.className='text-button';button.textContent='Jetzt zeichnen →';button.onclick=()=>{group='needed';updateGroups();selectCharacter(missing[0]);setView('alphabet');};note.append(text,button);
+    const text=document.createElement('span');text.textContent=`${missing.length} Zeichen fehlen: ${missing.slice(0,12).join(' ')}${missing.length>12?' …':''} ${state.settings.fallback?'(Beispielschrift)':'(bleiben leer)'} `;
+    const button=document.createElement('button');button.className='text-button';button.textContent='Zeichnen →';button.onclick=()=>{group='needed';updateGroups();selectCharacter(missing[0]);setView('alphabet');};note.append(text,button);
   }
-  $('#export-info').textContent=`${pages.length} ${pages.length===1?'Seite':'Seiten'} · PDF mit Vektor-Handschrift, PNG mit 4-facher Auflösung. ${missing.length?`${missing.length} Zeichen ${state.settings.fallback?'werden durch Beispielschrift ergänzt':'bleiben leer'}.`:''}`;
+  $('#export-info').textContent=`${pages.length} ${pages.length===1?'Seite':'Seiten'}${missing.length?` · ${missing.length} Zeichen ${state.settings.fallback?'in Beispielschrift':'fehlen'}`:''}`;
 }
 function updateGroups() {$$('[data-group]').forEach(b=>{b.classList.toggle('active',b.dataset.group===group);b.setAttribute('aria-pressed',b.dataset.group===group);});}
 async function loadImage(source) {
